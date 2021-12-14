@@ -1,0 +1,8 @@
+FROM golang:1.16.12
+
+RUN apt update
+
+WORKDIR /app
+ADD . .
+
+CMD ["go", "run", "github.com/PrinceNorin/rburlshortener/cmd/http"]
