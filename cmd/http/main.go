@@ -8,6 +8,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/PrinceNorin/rburlshortener/service"
 	"github.com/PrinceNorin/rburlshortener/transport"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
@@ -27,6 +28,11 @@ func main() {
 	db.NowFunc = func() time.Time {
 		return time.Now().UTC()
 	}
+	// create short_urls table. ideally we want to integrate
+	// with some sort of migration management tool
+	// but we skip it in this example for simplicity
+	err = initSchema(db)
+	checkError(err)
 
 	h := transport.NewHTTPHandler()
 	s := &http.Server{
@@ -40,6 +46,11 @@ func main() {
 	if err := s.ListenAndServe(); err != nil {
 		logger.Fatalf("Error: %v", err)
 	}
+}
+
+func initSchema(db *gorm.DB) (err error) {
+	err = db.AutoMigrate(&service.ShortURL{})
+	return
 }
 
 func checkError(err error) {
