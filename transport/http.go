@@ -3,10 +3,12 @@ package transport
 import (
 	"net/http"
 
+	"github.com/PrinceNorin/rburlshortener/service"
 	"github.com/gorilla/mux"
 )
 
-func NewHTTPHandler() http.Handler {
+// NewHTTPHandler factory function
+func NewHTTPHandler(svc service.URLShortener) http.Handler {
 	r := mux.NewRouter()
 
 	return r

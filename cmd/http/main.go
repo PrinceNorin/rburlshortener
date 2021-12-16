@@ -34,7 +34,8 @@ func main() {
 	err = initSchema(db)
 	checkError(err)
 
-	h := transport.NewHTTPHandler()
+	svc := service.NewURLShortener(db)
+	h := transport.NewHTTPHandler(svc)
 	s := &http.Server{
 		Handler:      h,
 		Addr:         fmt.Sprintf(":%d", *port),
