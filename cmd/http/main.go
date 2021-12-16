@@ -9,6 +9,8 @@ import (
 	"time"
 
 	"github.com/PrinceNorin/rburlshortener/transport"
+	"gorm.io/driver/sqlite"
+	"gorm.io/gorm"
 )
 
 var (
@@ -18,6 +20,14 @@ var (
 )
 
 func main() {
+	// connect to sqlite database
+	db, err := gorm.Open(sqlite.Open("database.sqlite"), &gorm.Config{})
+	checkError(err)
+	// save created_at as UTC
+	db.NowFunc = func() time.Time {
+		return time.Now().UTC()
+	}
+
 	h := transport.NewHTTPHandler()
 	s := &http.Server{
 		Handler:      h,
@@ -28,6 +38,12 @@ func main() {
 
 	logger.Printf("Listening to: http://127.0.0.1:%d", *port)
 	if err := s.ListenAndServe(); err != nil {
+		logger.Fatalf("Error: %v", err)
+	}
+}
+
+func checkError(err error) {
+	if err != nil {
 		logger.Fatalf("Error: %v", err)
 	}
 }
