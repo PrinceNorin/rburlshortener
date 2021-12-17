@@ -32,6 +32,10 @@ func (m *mockService) IncreaseHitCount(code string) error {
 	return nil
 }
 
+func (m *mockService) GetFullURL(code string) (string, error) {
+	return "", nil
+}
+
 func TestCreateShortURLHandler(t *testing.T) {
 	type testRequest struct {
 		url       string

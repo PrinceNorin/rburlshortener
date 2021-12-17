@@ -16,6 +16,7 @@ var (
 	ErrInvalidURL       = newError("invalid url", http.StatusBadRequest)
 	ErrInvalidExpiresIn = newError("invalid expires in", http.StatusBadRequest)
 	ErrRecordNotFound   = newError("record not found", http.StatusNotFound)
+	ErrShortURLExpired  = newError("url expired", http.StatusGone)
 )
 
 // ShortURLInput used to create a ShortURL
@@ -52,6 +53,8 @@ type URLShortener interface {
 	Delete(code string) error
 	// IncreaseHitCount of a short url
 	IncreaseHitCount(code string) error
+	// Get full url from code and increase hit count
+	GetFullURL(code string) (string, error)
 }
 
 // NewURLShortener factory function
@@ -120,6 +123,21 @@ func (s *urlShortener) Delete(code string) error {
 
 func (s *urlShortener) IncreaseHitCount(code string) error {
 	return s.repo.IncreaseShortURLHitCount(code, 1)
+}
+
+func (s *urlShortener) GetFullURL(code string) (string, error) {
+	shortURL, err := s.repo.FindShortURL(code)
+	if err != nil {
+		return "", ErrRecordNotFound
+	}
+	// check if short url is expired
+	if shortURL.ExpiresAt != nil && shortURL.ExpiresAt.Before(time.Now().UTC()) {
+		return "", ErrShortURLExpired
+	}
+	if err := s.repo.IncreaseShortURLHitCount(shortURL.Code, 1); err != nil {
+		return "", err
+	}
+	return shortURL.FullURL, nil
 }
 
 func getRandomShortCode(size int) (string, error) {

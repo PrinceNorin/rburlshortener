@@ -131,3 +131,41 @@ func TestServiceIncreaseShortURLHitCount(t *testing.T) {
 		repo.AssertExpectations(t)
 	}
 }
+
+func TestServiceGetFullURL(t *testing.T) {
+	repo := new(mockRepo)
+
+	expiresAt := time.Now().Add(-1 * time.Minute).UTC()
+	s1 := &ShortURL{FullURL: "http://example.com", Code: "123"}
+	s2 := &ShortURL{Code: "789", ExpiresAt: &expiresAt}
+	repo.On("FindShortURL", "123").Return(s1, nil)
+	repo.On("IncreaseShortURLHitCount", "123", 1).Return(nil)
+	repo.On("FindShortURL", "456").Return(nil, ErrRecordNotFound)
+	repo.On("FindShortURL", "789").Return(s2, nil)
+
+	type test struct {
+		input   string
+		fullURL string
+		err     error
+	}
+
+	tests := []test{
+		{input: "123", fullURL: "http://example.com", err: nil},
+		{input: "456", fullURL: "", err: ErrRecordNotFound},
+		{input: "789", fullURL: "", err: ErrShortURLExpired},
+	}
+
+	svc := NewURLShortener(repo)
+
+	for _, tc := range tests {
+		fullURL, err := svc.GetFullURL(tc.input)
+		if fullURL != tc.fullURL {
+			t.Errorf("expected: %v, got: %v", "http://example.com", fullURL)
+		}
+		if err != tc.err {
+			t.Errorf("expected error to be: %v, got: %v", nil, err)
+		}
+	}
+
+	repo.AssertExpectations(t)
+}
