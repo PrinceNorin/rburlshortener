@@ -15,6 +15,7 @@ const MAX_SHORT_CODE_LENGTH = 12
 var (
 	ErrInvalidURL       = newError("invalid url", http.StatusBadRequest)
 	ErrInvalidExpiresIn = newError("invalid expires in", http.StatusBadRequest)
+	ErrRecordNotFound   = newError("record not found", http.StatusNotFound)
 )
 
 // ShortURLInput used to create a ShortURL
@@ -102,6 +103,18 @@ func (s *urlShortener) FindURLs(params *FindParams) (*Result, error) {
 }
 
 func (s *urlShortener) Delete(code string) error {
+	shortURL, err := s.repo.FindShortURL(code)
+	if err != nil {
+		return ErrRecordNotFound
+	}
+
+	// mark this short url as expired
+	expiresAt := time.Now().Add(-1 * time.Hour).UTC()
+	shortURL.ExpiresAt = &expiresAt
+	if err := s.repo.UpdateShortURL(shortURL); err != nil {
+		return err
+	}
+
 	return nil
 }
 

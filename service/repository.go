@@ -14,6 +14,8 @@ var (
 // URLShortenerRepository to interact with data store
 type URLShortenerRepository interface {
 	CreateShortURL(shortURL *ShortURL) error
+	FindShortURL(code string) (*ShortURL, error)
+	UpdateShortURL(shortURL *ShortURL) error
 }
 
 // NewURLShortenerRepository factory function
@@ -30,6 +32,18 @@ func (r *sqliteRepository) CreateShortURL(shortURL *ShortURL) error {
 		return transformError(err)
 	}
 	return nil
+}
+
+func (r *sqliteRepository) FindShortURL(code string) (*ShortURL, error) {
+	var shortURL ShortURL
+	if err := r.db.Where("code = ?", code).First(&shortURL).Error; err != nil {
+		return nil, err
+	}
+	return &shortURL, nil
+}
+
+func (r *sqliteRepository) UpdateShortURL(shortURL *ShortURL) error {
+	return r.db.Save(shortURL).Error
 }
 
 func transformError(err error) error {
