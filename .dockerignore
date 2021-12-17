@@ -3,3 +3,5 @@ bin/
 tmp/
 
 *.sqlite
+.env*
+!.env.sample

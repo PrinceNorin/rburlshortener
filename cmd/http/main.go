@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"flag"
 	"fmt"
 	"log"
@@ -34,8 +35,16 @@ func main() {
 	err = initSchema(db)
 	checkError(err)
 
-	svc := service.NewURLShortener(db)
-	h := transport.NewHTTPHandler(svc)
+	host := os.Getenv("SERVER_HOST")
+	if host == "" {
+		checkError(errors.New("missing env [SERVER_HOST]"))
+	}
+
+	svc := service.NewURLShortener(service.NewURLShortenerRepository(db))
+	h := transport.NewHTTPHandler(transport.HTTPConfig{
+		Service:    svc,
+		ServerHost: host,
+	})
 	s := &http.Server{
 		Handler:      h,
 		Addr:         fmt.Sprintf(":%d", *port),

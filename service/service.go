@@ -1,13 +1,26 @@
 package service
 
 import (
-	"gorm.io/gorm"
+	"crypto/rand"
+	"encoding/base64"
+	"net/http"
+	"net/url"
+	"time"
+)
+
+// Max random short code length
+const MAX_SHORT_CODE_LENGTH = 12
+
+// Errors return from service
+var (
+	ErrInvalidURL       = newError("invalid url", http.StatusBadRequest)
+	ErrInvalidExpiresIn = newError("invalid expires in", http.StatusBadRequest)
 )
 
 // ShortURLInput used to create a ShortURL
 type ShortURLInput struct {
 	URL       string
-	ExpiresAt string
+	ExpiresIn int64
 }
 
 // FindParams used to get/filter short urls
@@ -41,16 +54,47 @@ type URLShortener interface {
 }
 
 // NewURLShortener factory function
-func NewURLShortener(db *gorm.DB) URLShortener {
-	return &urlShortener{db: db}
+func NewURLShortener(repo URLShortenerRepository) URLShortener {
+	return &urlShortener{repo: repo}
 }
 
 type urlShortener struct {
-	db *gorm.DB
+	repo URLShortenerRepository
 }
 
 func (s *urlShortener) Create(input ShortURLInput) (string, error) {
-	return "", nil
+	u, err := url.ParseRequestURI(input.URL)
+	if err != nil || u.Host == "" {
+		return "", ErrInvalidURL
+	}
+	domain := u.Host
+	if u.Port() != "" {
+		domain += ":" + u.Port()
+	}
+
+	code, err := getRandomShortCode(MAX_SHORT_CODE_LENGTH)
+	if err != nil {
+		return "", err
+	}
+
+	shortURL := ShortURL{
+		Code:    code,
+		FullURL: input.URL,
+		Domain:  domain,
+	}
+	if input.ExpiresIn < 0 {
+		return "", ErrInvalidExpiresIn
+	}
+	if input.ExpiresIn > 0 {
+		d := time.Duration(input.ExpiresIn) * time.Second
+		expiresAt := time.Now().Add(d).UTC()
+		shortURL.ExpiresAt = &expiresAt
+	}
+
+	if err := s.repo.CreateShortURL(&shortURL); err != nil {
+		return "", err
+	}
+	return code, nil
 }
 
 func (s *urlShortener) FindURLs(params *FindParams) (*Result, error) {
@@ -63,4 +107,12 @@ func (s *urlShortener) Delete(code string) error {
 
 func (s *urlShortener) IncreaseHitCount(code string) error {
 	return nil
+}
+
+func getRandomShortCode(size int) (string, error) {
+	buf := make([]byte, size)
+	if _, err := rand.Read(buf); err != nil {
+		return "", err
+	}
+	return base64.RawURLEncoding.EncodeToString(buf), nil
 }
