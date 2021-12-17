@@ -33,7 +33,8 @@ func (m *mockService) IncreaseHitCount(code string) error {
 }
 
 func (m *mockService) GetFullURL(code string) (string, error) {
-	return "", nil
+	args := m.Called(code)
+	return args.String(0), args.Error(1)
 }
 
 func TestCreateShortURLHandler(t *testing.T) {
@@ -121,5 +122,41 @@ func TestCreateShortURLHandler(t *testing.T) {
 		}
 
 		mockSvc.AssertExpectations(t)
+	}
+}
+
+func TestGetFullURLHandler(t *testing.T) {
+	mockSvc := new(mockService)
+	h := NewHTTPHandler(HTTPConfig{
+		ServerHost: "http://127.0.0.1",
+		Service:    mockSvc,
+	})
+
+	type test struct {
+		input string
+		want  int
+	}
+
+	tests := []test{
+		{input: "123", want: 302},
+		{input: "456", want: 410},
+		{input: "789", want: 404},
+	}
+
+	mockSvc.On("GetFullURL", "123").Return("http://example.com", nil)
+	mockSvc.On("GetFullURL", "456").Return("", service.ErrShortURLExpired)
+	mockSvc.On("GetFullURL", "789").Return("", service.ErrRecordNotFound)
+
+	for _, tc := range tests {
+		req, err := http.NewRequest("GET", "/"+tc.input, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		r := httptest.NewRecorder()
+		h.ServeHTTP(r, req)
+		if status := r.Code; status != tc.want {
+			t.Errorf("handler returned wrong status code: expected %v, got %v", tc.want, status)
+		}
 	}
 }

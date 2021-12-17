@@ -11,6 +11,7 @@ import (
 
 var (
 	jsonContentType = "application/json"
+	htmlContentType = "text/html"
 )
 
 // Config server configuration
@@ -26,6 +27,8 @@ func NewHTTPHandler(conf HTTPConfig) http.Handler {
 
 	r.HandleFunc("/", h.createShortURL).
 		Methods("POST")
+	r.HandleFunc("/{code}", h.getFullURL).
+		Methods("GET")
 
 	return r
 }
@@ -63,6 +66,19 @@ func (h handler) createShortURL(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, map[string]string{"url": shortURL}, http.StatusCreated)
 }
 
+func (h handler) getFullURL(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	code := vars["code"]
+
+	fullURL, err := h.svc.GetFullURL(code)
+	if err != nil {
+		handleError(err, w, r)
+		return
+	}
+
+	http.Redirect(w, r, fullURL, http.StatusFound)
+}
+
 func writeJSON(w http.ResponseWriter, resp interface{}, status int) {
 	w.Header().Add("Content-Type", "application/json")
 	w.WriteHeader(status)
@@ -83,9 +99,14 @@ func handleError(err error, w http.ResponseWriter, r *http.Request) {
 		resp = "internal server error"
 	}
 
-	w.Header().Add("Content-Type", jsonContentType)
 	w.WriteHeader(code)
-	json.NewEncoder(w).Encode(map[string]interface{}{
-		"error": resp,
-	})
+	switch code {
+	case 404, 410:
+		w.Header().Add("Content-Type", htmlContentType)
+	default:
+		w.Header().Add("Content-Type", jsonContentType)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"error": resp,
+		})
+	}
 }

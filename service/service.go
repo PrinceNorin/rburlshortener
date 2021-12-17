@@ -22,7 +22,7 @@ var (
 // ShortURLInput used to create a ShortURL
 type ShortURLInput struct {
 	URL       string
-	ExpiresIn int64
+	ExpiresIn int64 // second
 }
 
 // FindParams used to get/filter short urls
