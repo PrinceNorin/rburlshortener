@@ -16,6 +16,7 @@ type URLShortenerRepository interface {
 	CreateShortURL(shortURL *ShortURL) error
 	FindShortURL(code string) (*ShortURL, error)
 	UpdateShortURL(shortURL *ShortURL) error
+	IncreaseShortURLHitCount(code string, count int) error
 }
 
 // NewURLShortenerRepository factory function
@@ -43,7 +44,23 @@ func (r *sqliteRepository) FindShortURL(code string) (*ShortURL, error) {
 }
 
 func (r *sqliteRepository) UpdateShortURL(shortURL *ShortURL) error {
-	return r.db.Save(shortURL).Error
+	if shortURL.Id == 0 {
+		return ErrRecordNotFound
+	}
+	return r.db.Model(&ShortURL{Id: shortURL.Id}).Updates(shortURL).Error
+}
+
+func (r *sqliteRepository) IncreaseShortURLHitCount(code string, count int) error {
+	result := r.db.Model(&ShortURL{}).Where("code = ?", code).
+		Update("hit_count", gorm.Expr("hit_count + ?", count))
+
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return ErrRecordNotFound
+	}
+	return nil
 }
 
 func transformError(err error) error {

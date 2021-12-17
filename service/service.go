@@ -119,7 +119,7 @@ func (s *urlShortener) Delete(code string) error {
 }
 
 func (s *urlShortener) IncreaseHitCount(code string) error {
-	return nil
+	return s.repo.IncreaseShortURLHitCount(code, 1)
 }
 
 func getRandomShortCode(size int) (string, error) {

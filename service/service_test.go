@@ -29,6 +29,11 @@ func (m *mockRepo) UpdateShortURL(shortURL *ShortURL) error {
 	return args.Error(0)
 }
 
+func (m *mockRepo) IncreaseShortURLHitCount(code string, count int) error {
+	args := m.Called(code, count)
+	return args.Error(0)
+}
+
 func TestServiceCreateShortURL(t *testing.T) {
 	type test struct {
 		input ShortURLInput
@@ -96,6 +101,31 @@ func TestServiceDeleteShortURL(t *testing.T) {
 		}
 		if err == nil && (shortURL.ExpiresAt == nil || shortURL.ExpiresAt.After(time.Now().UTC())) {
 			t.Error("expected to mark short url as expired")
+		}
+
+		repo.AssertExpectations(t)
+	}
+}
+
+func TestServiceIncreaseShortURLHitCount(t *testing.T) {
+	type test struct {
+		input string
+		want  error
+	}
+
+	tests := []test{
+		{input: "123", want: nil},
+		{input: "456", want: ErrRecordNotFound},
+	}
+
+	repo := new(mockRepo)
+	svc := NewURLShortener(repo)
+
+	for _, tc := range tests {
+		repo.On("IncreaseShortURLHitCount", tc.input, 1).Return(tc.want)
+		err := svc.IncreaseHitCount(tc.input)
+		if err != tc.want {
+			t.Errorf("expected: %v, got: %v", tc.want, err)
 		}
 
 		repo.AssertExpectations(t)
