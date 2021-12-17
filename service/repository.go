@@ -17,6 +17,7 @@ type URLShortenerRepository interface {
 	FindShortURL(code string) (*ShortURL, error)
 	UpdateShortURL(shortURL *ShortURL) error
 	IncreaseShortURLHitCount(code string, count int) error
+	ListShortURLs(offset, size int64, filters ...*FilterParams) ([]*ShortURL, int64, error)
 }
 
 // NewURLShortenerRepository factory function
@@ -61,6 +62,40 @@ func (r *sqliteRepository) IncreaseShortURLHitCount(code string, count int) erro
 		return ErrRecordNotFound
 	}
 	return nil
+}
+
+func (r *sqliteRepository) ListShortURLs(offset, size int64, filters ...*FilterParams) ([]*ShortURL, int64, error) {
+	var filter *FilterParams
+	if len(filters) > 0 {
+		filter = filters[0]
+	}
+	if offset < 0 {
+		offset = 0
+	}
+
+	scope := r.db.Model(&ShortURL{})
+	if filter != nil {
+		if filter.Code != "" {
+			scope = scope.Where("code = ?", filter.Code)
+		}
+		if filter.Keyword != "" {
+			scope = scope.Where("domain LIKE ?", "%"+filter.Keyword+"%")
+		}
+	}
+
+	var count int64
+	var shortURLs []*ShortURL
+
+	if err := scope.Count(&count).Error; err != nil {
+		return nil, 0, err
+	}
+
+	scope = scope.Offset(int(offset)).Limit(int(size))
+	if err := scope.Find(&shortURLs).Error; err != nil {
+		return nil, 0, err
+	}
+
+	return shortURLs, count, nil
 }
 
 func transformError(err error) error {

@@ -139,6 +139,51 @@ func (suite *URLShortenerRepositorySuite) TestIncreaseShortURLHitCount() {
 	suite.Equal(ErrRecordNotFound, err)
 }
 
-func TestRepositoryCreateShortURL(t *testing.T) {
+func (suite *URLShortenerRepositorySuite) TestListShortURLs() {
+	shortURLs := []ShortURL{
+		{FullURL: "http://example.com", Domain: "example.com", Code: "123"},
+		{FullURL: "http://testdomain.com", Domain: "testdomain.com", Code: "456"},
+		{FullURL: "http://myawesome-site.com", Domain: "myawesome-site.com", Code: "789"},
+	}
+	for _, shortURL := range shortURLs {
+		suite.repo.CreateShortURL(&shortURL)
+	}
+
+	type test struct {
+		input *FindParams
+		codes []string
+		count int64
+	}
+
+	params := []*FindParams{
+		{Offset: 0, Size: 10},
+		{Offset: 1, Size: 1},
+		{Offset: 0, Size: 30, Filter: &FilterParams{Code: "123"}},
+		{Offset: 0, Size: 30, Filter: &FilterParams{Code: "321"}},
+		{Offset: 0, Size: 30, Filter: &FilterParams{Keyword: "awesome"}},
+		{Offset: 0, Size: 30, Filter: &FilterParams{Code: "123", Keyword: "awesome"}},
+	}
+
+	tests := []test{
+		{input: params[0], codes: []string{"123", "456", "789"}, count: 3},
+		{input: params[1], codes: []string{"456"}, count: 3},
+		{input: params[2], codes: []string{"123"}, count: 1},
+		{input: params[3], codes: nil, count: 0},
+		{input: params[4], codes: []string{"789"}, count: 1},
+		{input: params[5], codes: nil, count: 0},
+	}
+	for _, tc := range tests {
+		shortURLs, count, _ := suite.repo.ListShortURLs(tc.input.Offset, tc.input.Size, tc.input.Filter)
+
+		var codes []string
+		for _, shortURL := range shortURLs {
+			codes = append(codes, shortURL.Code)
+		}
+		suite.Equal(tc.count, count)
+		suite.Equal(tc.codes, codes)
+	}
+}
+
+func TestURLShortenerRepository(t *testing.T) {
 	suite.Run(t, new(URLShortenerRepositorySuite))
 }

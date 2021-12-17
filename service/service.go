@@ -28,6 +28,7 @@ type ShortURLInput struct {
 // FindParams used to get/filter short urls
 type FindParams struct {
 	Offset int64
+	Size   int64
 	Filter *FilterParams
 }
 
@@ -102,7 +103,15 @@ func (s *urlShortener) Create(input ShortURLInput) (string, error) {
 }
 
 func (s *urlShortener) FindURLs(params *FindParams) (*Result, error) {
-	return nil, nil
+	shortURLs, count, err := s.repo.ListShortURLs(params.Offset, params.Size, params.Filter)
+	if err != nil {
+		return nil, err
+	}
+
+	return &Result{
+		Data:       shortURLs,
+		TotalCount: count,
+	}, nil
 }
 
 func (s *urlShortener) Delete(code string) error {

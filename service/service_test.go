@@ -34,6 +34,16 @@ func (m *mockRepo) IncreaseShortURLHitCount(code string, count int) error {
 	return args.Error(0)
 }
 
+func (m *mockRepo) ListShortURLs(offset, size int64, filters ...*FilterParams) ([]*ShortURL, int64, error) {
+	arguments := []interface{}{offset, size}
+	for _, f := range filters {
+		arguments = append(arguments, f)
+	}
+
+	args := m.Called(arguments...)
+	return args.Get(0).([]*ShortURL), int64(args.Int(1)), args.Error(2)
+}
+
 func TestServiceCreateShortURL(t *testing.T) {
 	type test struct {
 		input ShortURLInput
@@ -165,6 +175,35 @@ func TestServiceGetFullURL(t *testing.T) {
 		if err != tc.err {
 			t.Errorf("expected error to be: %v, got: %v", nil, err)
 		}
+	}
+
+	repo.AssertExpectations(t)
+}
+
+func TestServiceFindShortURLs(t *testing.T) {
+	repo := new(mockRepo)
+	svc := NewURLShortener(repo)
+
+	var filter *FilterParams
+	shortURLs := []*ShortURL{
+		{FullURL: "http://example.com", Code: "123"},
+		{FullURL: "http://example1.com", Code: "456"},
+	}
+	repo.On("ListShortURLs", int64(0), int64(30), filter).
+		Return(shortURLs, 2, nil)
+
+	r, err := svc.FindURLs(&FindParams{
+		Offset: 0,
+		Size:   30,
+	})
+	if err != nil {
+		t.Errorf("expected: %v, got: %v", nil, err)
+	}
+	if len(r.Data) != 2 {
+		t.Error("expected to get a list of short urls")
+	}
+	if r.TotalCount != 2 {
+		t.Error("expected to get a total count of short url")
 	}
 
 	repo.AssertExpectations(t)
