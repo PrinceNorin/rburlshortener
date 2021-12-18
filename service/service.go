@@ -17,6 +17,7 @@ var (
 	ErrInvalidExpiresIn = newError("invalid expires in", http.StatusBadRequest)
 	ErrRecordNotFound   = newError("record not found", http.StatusNotFound)
 	ErrShortURLExpired  = newError("url expired", http.StatusGone)
+	ErrBlockedURL       = newError("url is blocked", http.StatusBadRequest)
 )
 
 // ShortURLInput used to create a ShortURL

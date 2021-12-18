@@ -6,6 +6,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/PrinceNorin/rburlshortener/service"
@@ -37,8 +38,14 @@ func main() {
 	// Load required environment variables
 	host := env("SERVER_HOST")
 	adminToken := env("ADMIN_TOKEN")
+	// comma separated pattern of blacklist
+	// normally should have api to manage blacklist
+	blacklistPatterns := loadBlacklist()
 
 	svc := service.NewURLShortener(service.NewURLShortenerRepository(db))
+	svc, err = service.WithBlacklist(svc, blacklistPatterns)
+	checkError(err)
+
 	h := transport.NewHTTPHandler(transport.HTTPConfig{
 		Service:    svc,
 		ServerHost: host,
@@ -74,4 +81,12 @@ func env(key string) string {
 		checkError(fmt.Errorf("missing env [%s]", key))
 	}
 	return val
+}
+
+func loadBlacklist() []string {
+	var patterns []string
+	for _, pattern := range strings.Split(os.Getenv("BLACKLIST"), ",") {
+		patterns = append(patterns, strings.TrimSpace(pattern))
+	}
+	return patterns
 }
