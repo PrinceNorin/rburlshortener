@@ -1,11 +1,13 @@
 package transport
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/PrinceNorin/rburlshortener/service"
 	"github.com/stretchr/testify/mock"
@@ -21,11 +23,13 @@ func (m *mockService) Create(input service.ShortURLInput) (string, error) {
 }
 
 func (m *mockService) FindURLs(params *service.FindParams) (*service.Result, error) {
-	return nil, nil
+	args := m.Called(params)
+	return args.Get(0).(*service.Result), args.Error(1)
 }
 
 func (m *mockService) Delete(code string) error {
-	return nil
+	args := m.Called(code)
+	return args.Error(0)
 }
 
 func (m *mockService) IncreaseHitCount(code string) error {
@@ -159,4 +163,167 @@ func TestGetFullURLHandler(t *testing.T) {
 			t.Errorf("handler returned wrong status code: expected %v, got %v", tc.want, status)
 		}
 	}
+
+	mockSvc.AssertExpectations(t)
+}
+
+func TestAdminListShortURLsHandler(t *testing.T) {
+	mockSvc := new(mockService)
+	h := NewHTTPHandler(HTTPConfig{
+		ServerHost: "http://127.0.0.1",
+		Service:    mockSvc,
+		AdminToken: "1234",
+	})
+
+	type response struct {
+		Data       []*service.ShortURL `json:"data"`
+		TotalCount int64               `json:"totalCount"`
+	}
+	type test struct {
+		params map[string]string
+		token  string
+		resp   interface{}
+		status int
+	}
+
+	expiresAt := time.Now().UTC()
+	shortURLs := []*service.ShortURL{
+		{
+			FullURL: "http://example.com",
+			Domain:  "example.com",
+			Code:    "123",
+		},
+		{
+			FullURL:   "http://example1.com",
+			Domain:    "example1.com",
+			Code:      "456",
+			ExpiresAt: &expiresAt,
+		},
+	}
+
+	tests := []test{
+		{
+			token: "1234",
+			params: map[string]string{
+				"size":   "10",
+				"offset": "0",
+			},
+			resp: &response{
+				Data:       shortURLs,
+				TotalCount: 2,
+			},
+			status: 200,
+		},
+		{
+			token: "1234",
+			params: map[string]string{
+				"size":      "10",
+				"offset":    "0",
+				"shortCode": "123",
+			},
+			resp: &response{
+				Data:       []*service.ShortURL{shortURLs[0]},
+				TotalCount: 1,
+			},
+			status: 200,
+		},
+		{
+			token:  "invalid token",
+			status: 403,
+			resp:   map[string]string{"error": "403 Forbidden!"},
+		},
+	}
+
+	mockSvc.On("FindURLs", &service.FindParams{
+		Offset: 0,
+		Size:   10,
+		Filter: &service.FilterParams{},
+	}).Return(&service.Result{
+		Data:       shortURLs,
+		TotalCount: 2,
+	}, nil)
+	mockSvc.On("FindURLs", &service.FindParams{
+		Offset: 0,
+		Size:   10,
+		Filter: &service.FilterParams{
+			Code: "123",
+		},
+	}).Return(&service.Result{
+		Data:       []*service.ShortURL{shortURLs[0]},
+		TotalCount: 1,
+	}, nil)
+
+	for _, tc := range tests {
+		req, err := http.NewRequest("GET", "/admin/shortUrls", nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		q := req.URL.Query()
+		for key, val := range tc.params {
+			q.Add(key, val)
+		}
+		req.URL.RawQuery = q.Encode()
+		req.Header.Add("Authorization", "Bearer "+tc.token)
+
+		r := httptest.NewRecorder()
+		h.ServeHTTP(r, req)
+
+		if status := r.Code; status != tc.status {
+			t.Errorf("handler returned wrong status code: expected %v, got %v", tc.status, status)
+		}
+
+		buf, err := json.Marshal(tc.resp)
+		if err != nil {
+			t.Fatal(err)
+		}
+		expectedResp := strings.TrimSpace(string(buf))
+		actualResp := strings.TrimSpace(r.Body.String())
+		if actualResp != expectedResp {
+			t.Errorf("handler returned wrong response: expected %v, got %v", expectedResp, actualResp)
+		}
+	}
+
+	mockSvc.AssertExpectations(t)
+}
+
+func TestAdminDeleteShortURL(t *testing.T) {
+	mockSvc := new(mockService)
+	h := NewHTTPHandler(HTTPConfig{
+		ServerHost: "http://127.0.0.1",
+		Service:    mockSvc,
+		AdminToken: "1234",
+	})
+
+	mockSvc.On("Delete", "123").Return(nil)
+	mockSvc.On("Delete", "456").Return(service.ErrRecordNotFound)
+
+	type test struct {
+		code   string
+		token  string
+		status int
+	}
+
+	tests := []test{
+		{code: "123", status: 204, token: "1234"},
+		{code: "456", status: 404, token: "1234"},
+		{code: "123", status: 403, token: "invalid"},
+	}
+
+	for _, tc := range tests {
+		req, err := http.NewRequest("DELETE", "/admin/shortUrls/"+tc.code, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		req.Header.Add("Authorization", "Bearer "+tc.token)
+		r := httptest.NewRecorder()
+		h.ServeHTTP(r, req)
+
+		if status := r.Code; status != tc.status {
+			t.Errorf("handler returned wrong status code: expected %v, got %v", tc.status, status)
+		}
+	}
+
+	mockSvc.AssertExpectations(t)
 }

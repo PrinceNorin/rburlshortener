@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strconv"
 
 	"github.com/PrinceNorin/rburlshortener/service"
 	"github.com/gorilla/mux"
@@ -18,6 +19,7 @@ var (
 type HTTPConfig struct {
 	Service    service.URLShortener
 	ServerHost string
+	AdminToken string
 }
 
 // NewHTTPHandler factory function
@@ -29,6 +31,12 @@ func NewHTTPHandler(conf HTTPConfig) http.Handler {
 		Methods("POST")
 	r.HandleFunc("/{code}", h.getFullURL).
 		Methods("GET")
+
+	// Admin endpoints
+	admin := r.PathPrefix("/admin").Subrouter()
+	admin.Use(httpAdminAuthMiddleware(conf.AdminToken))
+	admin.HandleFunc("/shortUrls", h.adminListShortURLs).Methods("GET")
+	admin.HandleFunc("/shortUrls/{code}", h.adminDeleteShortURL).Methods("DELETE")
 
 	return r
 }
@@ -79,10 +87,68 @@ func (h handler) getFullURL(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, fullURL, http.StatusFound)
 }
 
+func (h handler) adminListShortURLs(w http.ResponseWriter, r *http.Request) {
+	result, err := h.svc.FindURLs(getFindParams(r))
+	if err != nil {
+		handleError(err, w, r)
+		return
+	}
+
+	data := map[string]interface{}{
+		"data":       result.Data,
+		"totalCount": result.TotalCount,
+	}
+	writeJSON(w, data, http.StatusOK)
+}
+
+func (h handler) adminDeleteShortURL(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	if err := h.svc.Delete(vars["code"]); err != nil {
+		handleError(err, w, r)
+		return
+	}
+	w.Header().Add("Content-Type", jsonContentType)
+	w.WriteHeader(http.StatusNoContent)
+}
+
 func writeJSON(w http.ResponseWriter, resp interface{}, status int) {
-	w.Header().Add("Content-Type", "application/json")
+	w.Header().Add("Content-Type", jsonContentType)
 	w.WriteHeader(status)
 	json.NewEncoder(w).Encode(resp)
+}
+
+func getFindParams(r *http.Request) *service.FindParams {
+	offset, size := getPaginationParams(r)
+	return &service.FindParams{
+		Size:   size,
+		Offset: offset,
+		Filter: &service.FilterParams{
+			Code:    r.URL.Query().Get("shortCode"),
+			Keyword: r.URL.Query().Get("keyword"),
+		},
+	}
+}
+
+func getPaginationParams(r *http.Request) (int64, int64) {
+	var (
+		offset int64 = 0
+		size   int64 = 30
+	)
+
+	val := r.URL.Query().Get("offset")
+	if val != "" {
+		if v, err := strconv.ParseInt(val, 10, 64); err == nil {
+			offset = v
+		}
+	}
+	val = r.URL.Query().Get("size")
+	if val != "" {
+		if v, err := strconv.ParseInt(val, 10, 64); err == nil {
+			size = v
+		}
+	}
+
+	return offset, size
 }
 
 func handleError(err error, w http.ResponseWriter, r *http.Request) {
@@ -99,12 +165,13 @@ func handleError(err error, w http.ResponseWriter, r *http.Request) {
 		resp = "internal server error"
 	}
 
-	w.WriteHeader(code)
 	switch code {
 	case 404, 410:
 		w.Header().Add("Content-Type", htmlContentType)
+		w.WriteHeader(code)
 	default:
 		w.Header().Add("Content-Type", jsonContentType)
+		w.WriteHeader(code)
 		json.NewEncoder(w).Encode(map[string]interface{}{
 			"error": resp,
 		})
