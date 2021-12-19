@@ -3,7 +3,9 @@ package transport
 import (
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
+	"os"
 	"strconv"
 
 	"github.com/PrinceNorin/rburlshortener/service"
@@ -27,6 +29,7 @@ func NewHTTPHandler(conf HTTPConfig) http.Handler {
 	r := mux.NewRouter()
 	h := handler{svc: conf.Service, serverHost: conf.ServerHost}
 
+	r.Use(loggingMiddleware(log.New(os.Stdout, "", 0)))
 	r.HandleFunc("/", h.createShortURL).
 		Methods("POST")
 	r.HandleFunc("/{code}", h.getFullURL).

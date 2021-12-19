@@ -1,8 +1,10 @@
 package transport
 
 import (
+	"log"
 	"net/http"
 	"regexp"
+	"time"
 
 	"github.com/gorilla/mux"
 )
@@ -10,6 +12,16 @@ import (
 var (
 	rxBearer = regexp.MustCompile(`^Bearer (.+)$`)
 )
+
+type statusRecorder struct {
+	http.ResponseWriter
+	status int
+}
+
+func (s *statusRecorder) WriteHeader(status int) {
+	s.status = status
+	s.ResponseWriter.WriteHeader(status)
+}
 
 func httpAdminAuthMiddleware(token string) mux.MiddlewareFunc {
 	return func(next http.Handler) http.Handler {
@@ -37,6 +49,26 @@ func httpAdminAuthMiddleware(token string) mux.MiddlewareFunc {
 			}
 
 			next.ServeHTTP(w, r)
+		})
+	}
+}
+
+func loggingMiddleware(logger *log.Logger) mux.MiddlewareFunc {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			ww := &statusRecorder{
+				ResponseWriter: w,
+				status:         200,
+			}
+			defer func(begin time.Time) {
+				took := time.Since(begin)
+				reqAt := time.Now().Format("2006/01/02 15:04")
+
+				logger.Printf("[%s] %s: %d %v - %s",
+					r.Method, reqAt, ww.status, took, r.URL.RequestURI())
+			}(time.Now())
+
+			next.ServeHTTP(ww, r)
 		})
 	}
 }
