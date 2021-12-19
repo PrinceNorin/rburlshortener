@@ -2,6 +2,7 @@ package service
 
 import "regexp"
 
+// WithBlacklist decorate existing URLShortener with blacklist checking capabilty
 func WithBlacklist(svc URLShortener, patterns []string) (URLShortener, error) {
 	rxPatterns := []*regexp.Regexp{}
 	for _, pattern := range patterns {

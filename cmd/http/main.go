@@ -42,7 +42,14 @@ func main() {
 	// normally should have api to manage blacklist
 	blacklistPatterns := loadBlacklist()
 
-	svc := service.NewURLShortener(service.NewURLShortenerRepository(db))
+	// build repository
+	repo := service.NewURLShortenerRepository(db)
+	// adding cache layer
+	repo = service.WithCache(repo, service.NewMemoryCacheStore())
+
+	// build service
+	svc := service.NewURLShortener(repo)
+	// adding blacklist check
 	svc, err = service.WithBlacklist(svc, blacklistPatterns)
 	checkError(err)
 
@@ -84,8 +91,13 @@ func env(key string) string {
 }
 
 func loadBlacklist() []string {
+	val := os.Getenv("BLACKLIST")
+	if val == "" {
+		return nil
+	}
+
 	var patterns []string
-	for _, pattern := range strings.Split(os.Getenv("BLACKLIST"), ",") {
+	for _, pattern := range strings.Split(val, ",") {
 		patterns = append(patterns, strings.TrimSpace(pattern))
 	}
 	return patterns
