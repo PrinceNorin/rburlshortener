@@ -72,3 +72,16 @@ func loggingMiddleware(logger *log.Logger) mux.MiddlewareFunc {
 		})
 	}
 }
+
+func recoverer(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		defer func() {
+			if err := recover(); err != nil {
+				// better to log to logging or bug tracking services
+				log.Printf("[Error]: %v", err)
+				http.Error(w, "internal server error", http.StatusInternalServerError)
+			}
+		}()
+		next.ServeHTTP(w, r)
+	})
+}

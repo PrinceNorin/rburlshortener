@@ -30,6 +30,7 @@ func NewHTTPHandler(conf HTTPConfig) http.Handler {
 	h := handler{svc: conf.Service, serverHost: conf.ServerHost}
 
 	r.Use(loggingMiddleware(log.New(os.Stdout, "", 0)))
+	r.Use(recoverer)
 	r.HandleFunc("/", h.createShortURL).
 		Methods("POST")
 	r.HandleFunc("/{code}", h.getFullURL).
