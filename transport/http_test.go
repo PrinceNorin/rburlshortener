@@ -104,7 +104,7 @@ func TestCreateShortURLHandler(t *testing.T) {
 
 	for _, tc := range tests {
 		body := fmt.Sprintf(`{"url": "%s", "expiresIn": %d}`, tc.req.url, tc.req.expiresIn)
-		req, err := http.NewRequest("POST", "/", strings.NewReader(body))
+		req, err := http.NewRequest("POST", "/shorten", strings.NewReader(body))
 		if err != nil {
 			t.Fatal(err)
 		}
