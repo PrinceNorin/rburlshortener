@@ -11,4 +11,5 @@ type ShortURL struct {
 	HitCount  int64      `json:"hitCount" gorm:"default:0"`
 	ExpiresAt *time.Time `json:"expiresAt,omitempty"`
 	CreatedAt time.Time  `json:"-"`
+	DeletedAt *time.Time `json:"-" gorm:"index"`
 }

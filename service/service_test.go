@@ -109,8 +109,8 @@ func TestServiceDeleteShortURL(t *testing.T) {
 		if err != tc.want {
 			t.Errorf("expected: %v, got: %v", tc.want, err)
 		}
-		if err == nil && (shortURL.ExpiresAt == nil || shortURL.ExpiresAt.After(time.Now().UTC())) {
-			t.Error("expected to mark short url as expired")
+		if err == nil && shortURL.DeletedAt == nil {
+			t.Error("expected to soft delete short url")
 		}
 
 		repo.AssertExpectations(t)
@@ -145,13 +145,16 @@ func TestServiceIncreaseShortURLHitCount(t *testing.T) {
 func TestServiceGetFullURL(t *testing.T) {
 	repo := new(mockRepo)
 
+	deletedAt := time.Now().UTC()
 	expiresAt := time.Now().Add(-1 * time.Minute).UTC()
 	s1 := &ShortURL{FullURL: "http://example.com", Code: "123"}
 	s2 := &ShortURL{Code: "789", ExpiresAt: &expiresAt}
+	s3 := &ShortURL{Code: "111", DeletedAt: &deletedAt}
 	repo.On("FindShortURL", "123").Return(s1, nil)
 	repo.On("IncreaseShortURLHitCount", "123", 1).Return(nil)
 	repo.On("FindShortURL", "456").Return(nil, ErrRecordNotFound)
 	repo.On("FindShortURL", "789").Return(s2, nil)
+	repo.On("FindShortURL", "111").Return(s3, nil)
 
 	type test struct {
 		input   string
@@ -163,6 +166,7 @@ func TestServiceGetFullURL(t *testing.T) {
 		{input: "123", fullURL: "http://example.com", err: nil},
 		{input: "456", fullURL: "", err: ErrRecordNotFound},
 		{input: "789", fullURL: "", err: ErrShortURLExpired},
+		{input: "111", fullURL: "", err: ErrShortURLExpired},
 	}
 
 	svc := NewURLShortener(repo)

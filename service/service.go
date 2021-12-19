@@ -121,9 +121,9 @@ func (s *urlShortener) Delete(code string) error {
 		return ErrRecordNotFound
 	}
 
-	// mark this short url as expired
-	expiresAt := time.Now().Add(-1 * time.Hour).UTC()
-	shortURL.ExpiresAt = &expiresAt
+	// soft delete short url
+	deletedAt := time.Now().UTC()
+	shortURL.DeletedAt = &deletedAt
 	if err := s.repo.UpdateShortURL(shortURL); err != nil {
 		return err
 	}
@@ -142,6 +142,10 @@ func (s *urlShortener) GetFullURL(code string) (string, error) {
 	}
 	// check if short url is expired
 	if shortURL.ExpiresAt != nil && shortURL.ExpiresAt.Before(time.Now().UTC()) {
+		return "", ErrShortURLExpired
+	}
+	// check if short url was deleted by admin
+	if shortURL.DeletedAt != nil {
 		return "", ErrShortURLExpired
 	}
 	if err := s.repo.IncreaseShortURLHitCount(shortURL.Code, 1); err != nil {

@@ -38,7 +38,7 @@ func (r *sqliteRepository) CreateShortURL(shortURL *ShortURL) error {
 
 func (r *sqliteRepository) FindShortURL(code string) (*ShortURL, error) {
 	var shortURL ShortURL
-	if err := r.db.Where("code = ?", code).First(&shortURL).Error; err != nil {
+	if err := r.db.Unscoped().Where("code = ?", code).First(&shortURL).Error; err != nil {
 		return nil, err
 	}
 	return &shortURL, nil
@@ -73,7 +73,7 @@ func (r *sqliteRepository) ListShortURLs(offset, size int64, filters ...*FilterP
 		offset = 0
 	}
 
-	scope := r.db.Model(&ShortURL{})
+	scope := r.db.Unscoped().Model(&ShortURL{})
 	if filter != nil {
 		if filter.Code != "" {
 			scope = scope.Where("code = ?", filter.Code)
