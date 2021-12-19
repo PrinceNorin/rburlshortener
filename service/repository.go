@@ -73,7 +73,7 @@ func (r *sqliteRepository) ListShortURLs(offset, size int64, filters ...*FilterP
 		offset = 0
 	}
 
-	scope := r.db.Unscoped().Model(&ShortURL{})
+	scope := r.db.Model(&ShortURL{})
 	if filter != nil {
 		if filter.Code != "" {
 			scope = scope.Where("code = ?", filter.Code)
